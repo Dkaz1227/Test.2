@@ -116,6 +116,7 @@
             this.GridView.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.GridView.Location = new System.Drawing.Point(7, 92);
             this.GridView.Name = "GridView";
+            this.GridView.ReadOnly = true;
             this.GridView.RowHeadersWidth = 51;
             this.GridView.RowTemplate.Height = 24;
             this.GridView.Size = new System.Drawing.Size(717, 263);

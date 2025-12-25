@@ -3,6 +3,8 @@ using MailKit.Security;
 using MimeKit;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -44,20 +46,29 @@ namespace HeThongChungKhoan
                 catch { }
         }
 
+        private void parseGrid(List<object> data)
+        {
+            Table = new DataTable();
+            Table.Columns.Add("StockCode", typeof(string));
+            Table.Columns.Add("StockName", typeof(string));
+            Table.Columns.Add("ClosePrice", typeof(int));
+            Table.Columns.Add("Change", typeof(int));
+            Table.Columns.Add("PerChange", typeof(int));
+            GridView.DataSource = Table;
+        }
+
         private void TimKiem_Click(object sender, EventArgs e)
         {
             int size = (int) numSize.Value;
             DateTime time = DateTime.Parse(dayDate.Value.ToString());
             string formattedDateTime = time.ToString("yyyy-MM-dd HH:mm:ss");
-            string email = txtReceiveMail.Text;
             var res = new
             {
                 Command = "FETCH_DATA",
                 Payload = new
                 {
                     Size = size,
-                    Date = formattedDateTime,
-                    Email = email
+                    Date = formattedDateTime
                 }
             };
             string response = SendRequest(stream, JsonConvert.SerializeObject(res));
@@ -137,13 +148,16 @@ namespace HeThongChungKhoan
                 string timeStamp = obj.Timestamp.ToString();
                 string timeOnly = DateTime.Parse(timeStamp).TimeOfDay.ToString();
                 string mes = obj.Message.ToString();
+                List<object> data = obj.Data;
                 LogMessage($"[{timeOnly}] {mes}");
                 switch (type)
                 {
                     case "DATA_RESULT":
+                        parseGrid(data)
                         break;
 
                     case "NOTIFICATION":
+                        MessageBox.Show("Mail gửi thành công!");
                         break;
                 }
             }
@@ -163,10 +177,6 @@ namespace HeThongChungKhoan
             {
 
             }
-        }
-        private void btnMail_Click(object sender, EventArgs e)
-        {
-            
         }
     }
 }
