@@ -21,7 +21,7 @@ namespace HeThongChungKhoan
 
         public static class GlobalSettings
         {
-            public static string ServerAddress { get; set; } = "10.129.212.142";
+            public static string ServerAddress { get; set; } = "127.0.0.1";
             public static string Port { get; set; } = "9000";
         }
     }

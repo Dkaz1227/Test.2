@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -20,61 +21,91 @@ namespace HeThongChungKhoan
         private NetworkStream stream;
         private StreamReader reader;
         private StreamWriter writer;
-        private Thread listenThread;
+        private CancellationTokenSource _cts;
+        private Task _listeningTask;
 
         public Client()
         {
             InitializeComponent();
             client = new TcpClient();
+            _cts = new CancellationTokenSource();
+
+            _ = ConnectAndListenAsync(_cts.Token);
+        }
+
+        private async Task ConnectAndListenAsync(CancellationToken ct)
+        {
             try
             {
-                client.Connect(GlobalSettings.ServerAddress, int.Parse(GlobalSettings.Port));
+                await client.ConnectAsync(GlobalSettings.ServerAddress, int.Parse(GlobalSettings.Port));
                 if (client.Connected)
                 {
                     stream = client.GetStream();
-                    reader = new StreamReader(stream);
-                    writer = new StreamWriter(stream);
+                    reader = new StreamReader(stream, Encoding.UTF8);
+                    writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
 
-                    listenThread = new Thread(new ThreadStart(ListenForMessages));
-                    listenThread.IsBackground = true;
-                    listenThread.Start();
+                    _listeningTask = Task.Run(() => ListenForMessagesAsync(ct), ct);
                 }
             }
             catch { }
         }
 
-        private void parseGrid(dynamic data)
+        private void parseGrid(JToken data)
         {
-            DataTable Table = new DataTable();
+            var Table = new DataTable();
             Table.Columns.Add("StockCode", typeof(string));
             Table.Columns.Add("StockName", typeof(string));
-            Table.Columns.Add("ClosePrice", typeof(int));
-            Table.Columns.Add("Change", typeof(int));
-            Table.Columns.Add("PerChange", typeof(int));
+            Table.Columns.Add("ClosePrice", typeof(string));
+            Table.Columns.Add("Change", typeof(string));
+            Table.Columns.Add("PerChange", typeof(string));
+
             try
             {
-                DataTable dt = null;
-                try { dt = data.ToObject<DataTable>()[2]; } catch { }
+                if (data == null) return;
 
-                if (dt != null)
+                if (data is JArray arr)
                 {
-                    foreach (DataRow row in dt.Rows)
+                    foreach (var item in arr)
                     {
                         Table.Rows.Add(
-                            row.Table.Columns.Contains("StockCode") ? Convert.ToString(row["StockCode"]) : string.Empty,
-                            row.Table.Columns.Contains("StockName") ? Convert.ToString(row["StockName"]) : string.Empty,
-                            row.Table.Columns.Contains("ClosePrice") ? Convert.ToString(row["ClosePrice"]) : string.Empty,
-                            row.Table.Columns.Contains("Change") ? Convert.ToString(row["Change"]) : string.Empty,
-                            row.Table.Columns.Contains("PerChange") ? Convert.ToString(row["PerChange"]) : string.Empty
+                            item["StockCode"]?.ToString() ?? string.Empty,
+                            item["StockName"]?.ToString() ?? string.Empty,
+                            item["ClosePrice"]?.ToString() ?? string.Empty,
+                            item["Change"]?.ToString() ?? string.Empty,
+                            item["PerChange"]?.ToString() ?? string.Empty
                         );
                     }
                 }
-            } catch { }
+                else if (data is JValue)
+                {
+                }
+                else
+                {
+                    foreach (var item in data)
+                    {
+                        Table.Rows.Add(
+                            item["StockCode"]?.ToString() ?? string.Empty,
+                            item["StockName"]?.ToString() ?? string.Empty,
+                            item["ClosePrice"]?.ToString() ?? string.Empty,
+                            item["Change"]?.ToString() ?? string.Empty,
+                            item["PerChange"]?.ToString() ?? string.Empty
+                        );
+                    }
+                }
+            }
+            catch { }
 
-            GridView.DataSource = Table;
+            if (GridView.InvokeRequired)
+            {
+                GridView.BeginInvoke((MethodInvoker)(() => GridView.DataSource = Table));
+            }
+            else
+            {
+                GridView.DataSource = Table;
+            }
         }
 
-        private void TimKiem_Click(object sender, EventArgs e)
+        private async void TimKiem_Click(object sender, EventArgs e)
         {
             int size = (int) numSize.Value;
             DateTime time = DateTime.Parse(dayDate.Value.ToString());
@@ -88,42 +119,37 @@ namespace HeThongChungKhoan
                     Date = formattedDateTime
                 }
             };
-            string response = SendRequest(stream, JsonConvert.SerializeObject(res));
-            HandleServerMessage(response);
+            await SendRequestAsync(JsonConvert.SerializeObject(res));
         }
 
-        private void GuiMail_Click(object sender, EventArgs e)
+        private async void GuiMail_Click(object sender, EventArgs e)
         {
             string email = txtReceiveMail.Text;
+            int size = (int) numSize.Value;
+            DateTime time = DateTime.Parse(dayDate.Value.ToString());
+            string formattedDateTime = time.ToString("yyyy-MM-dd HH:mm:ss");
+
             var res = new
             {
                 Command = "SEND_EMAIL",
                 Payload = new
                 {
+                    Size = size,
+                    Date = formattedDateTime,
                     Email = email
                 }
             };
-            string response = SendRequest(stream, JsonConvert.SerializeObject(res));
-            HandleServerMessage(response);
-            MessageBox.Show("Mail gửi thành công!");
+            await SendRequestAsync(JsonConvert.SerializeObject(res));
         }
 
-        private string SendRequest(NetworkStream ns, string jsonRequest)
+        private async Task SendRequestAsync(string jsonRequest)
         {
             try
             {
-                byte[] requestData = Encoding.UTF8.GetBytes(jsonRequest);
-                ns.Write(requestData, 0, requestData.Length);
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    byte[] buffer = new byte[4096];
-                    int bytesRead;
-                    while ((bytesRead = ns.Read(buffer, 0, buffer.Length)) > 0)
-                    {
-                        ms.Write(buffer, 0, bytesRead);
-                    }
-                    return Encoding.UTF8.GetString(ms.ToArray());
-                }
+                if (writer == null)
+                    throw new InvalidOperationException("Not connected to server");
+
+                await writer.WriteLineAsync(jsonRequest);
             }
             catch (Exception ex)
             {
@@ -132,17 +158,18 @@ namespace HeThongChungKhoan
                     status = "error",
                     message = $"Không thể kết nối hoặc giao tiếp với server. {ex.Message}"
                 };
-                return JsonConvert.SerializeObject(errorResponse);
+                LogMessage(JsonConvert.SerializeObject(errorResponse));
             }
         }
 
-        private void ListenForMessages()
+        private async Task ListenForMessagesAsync(CancellationToken ct)
         {
             try
             {
-                string message;
-                while ((message = reader.ReadLine()) != null)
+                while (!ct.IsCancellationRequested)
                 {
+                    string message = await reader.ReadLineAsync();
+                    if (message == null) break;
                     HandleServerMessage(message);
                 }
             }
@@ -150,23 +177,26 @@ namespace HeThongChungKhoan
             {
                 LogMessage("Mất kết nối với Server.");
                 LogMessage(ex.Message);
-                listenThread?.Abort();
-                stream?.Close();
-                client?.Close();
+                try { _cts?.Cancel(); } catch { }
+                try { stream?.Close(); } catch { }
+                try { client?.Close(); } catch { }
             }
         }
 
         private void HandleServerMessage(string message)
         {
             dynamic obj = JsonConvert.DeserializeObject(message);
-            string status = obj.Status.ToString();
+            if (obj == null) return;
+
+            string status = (obj.Status ?? obj.status ?? "").ToString();
             if(status == "Success")
             {
-                string type = obj.Type.ToString();
-                string timeStamp = obj.Timestamp.ToString();
+                string type = (obj.Type ?? obj.type ?? "").ToString();
+                string timeStamp = (obj.Timestamp ?? obj.timestamp ?? DateTime.Now.ToString()).ToString();
                 string timeOnly = DateTime.Parse(timeStamp).TimeOfDay.ToString();
-                string mes = obj.Message.ToString();
-                dynamic data = obj.Data;
+                string mes = (obj.Message ?? obj.message ?? "").ToString();
+                JToken data = null;
+                try { data = JToken.Parse(JsonConvert.SerializeObject(obj.Data)); } catch { }
                 LogMessage($"[{timeOnly}] {mes}");
                 switch (type)
                 {
@@ -180,7 +210,14 @@ namespace HeThongChungKhoan
             }
             else
             {
-                MessageBox.Show("Server lỗi");
+                if (this.InvokeRequired)
+                {
+                    this.BeginInvoke((MethodInvoker)(() => MessageBox.Show("Server lỗi")));
+                }
+                else
+                {
+                    MessageBox.Show("Server lỗi");
+                }
             }
         }
 
@@ -188,12 +225,34 @@ namespace HeThongChungKhoan
         {
             try
             {
-                lstAnoucement.Items.Add($"{message}");
+                if (lstAnoucement.InvokeRequired)
+                {
+                    lstAnoucement.BeginInvoke((MethodInvoker)(() => lstAnoucement.Items.Add($"{message}")));
+                }
+                else
+                {
+                    lstAnoucement.Items.Add($"{message}");
+                }
             }
             catch (Exception)
             {
 
             }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try
+            {
+                _cts?.Cancel();
+                _listeningTask?.Wait(500);
+                try { reader?.Close(); } catch { }
+                try { writer?.Close(); } catch { }
+                try { stream?.Close(); } catch { }
+                try { client?.Close(); } catch { }
+            }
+            catch { }
+            base.OnFormClosing(e);
         }
     }
 }
