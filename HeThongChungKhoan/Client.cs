@@ -1,4 +1,7 @@
-﻿using Newtonsoft.Json;
+﻿using MailKit;
+using MailKit.Security;
+using MimeKit;
+using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Net.Sockets;
@@ -109,27 +112,7 @@ namespace HeThongChungKhoan
         }
         private void btnMail_Click(object sender, EventArgs e)
         {
-            using (StreamWriter sw = new StreamWriter("data.txt"))
-            {
-                for (int i = 0; i < GridView.Columns.Count; i++)
-                {
-                    sw.Write(GridView.Columns[i].HeaderText + "\t");
-                }
-                sw.WriteLine();
-
-                foreach (DataGridViewRow row in GridView.Rows)
-                {
-                    if (!row.IsNewRow)
-                    {
-                        for (int i = 0; i < GridView.Columns.Count; i++)
-                        {
-                            sw.Write(row.Cells[i].Value?.ToString() + "\t");
-                        }
-                        sw.WriteLine();
-                    }
-                }
-            }
-
+            
         }
     }
 }
