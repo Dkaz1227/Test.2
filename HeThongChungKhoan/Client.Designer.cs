@@ -147,6 +147,7 @@
             this.btnMail.TabIndex = 1;
             this.btnMail.Text = "Xuất và Gửi Mail";
             this.btnMail.UseVisualStyleBackColor = true;
+            this.btnMail.Click += new System.EventHandler(this.GuiMail_Click);
             // 
             // btnTruyVan
             // 

@@ -64,6 +64,21 @@ namespace HeThongChungKhoan
             HandleServerMessage(response);
         }
 
+        private void GuiMail_Click(object sender, EventArgs e)
+        {
+            string email = txtReceiveMail.Text;
+            var res = new
+            {
+                Command = "SEND_EMAIL",
+                Payload = new
+                {
+                    Email = email
+                }
+            };
+            string response = SendRequest(stream, JsonConvert.SerializeObject(res));
+            HandleServerMessage(response);
+        }
+
         private string SendRequest(NetworkStream ns, string jsonRequest)
         {
             try
