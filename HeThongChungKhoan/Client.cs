@@ -1,7 +1,4 @@
-﻿using MailKit;
-using MailKit.Security;
-using MimeKit;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -46,14 +43,32 @@ namespace HeThongChungKhoan
                 catch { }
         }
 
-        private void parseGrid(List<object> data)
+        private void parseGrid(dynamic data)
         {
-            Table = new DataTable();
+            DataTable Table = new DataTable();
             Table.Columns.Add("StockCode", typeof(string));
             Table.Columns.Add("StockName", typeof(string));
             Table.Columns.Add("ClosePrice", typeof(int));
             Table.Columns.Add("Change", typeof(int));
             Table.Columns.Add("PerChange", typeof(int));
+
+            DataTable dt = null;
+            try { dt = data.ToObject<DataTable>()[2]; } catch { }
+
+            if (dt != null)
+            {
+                foreach (DataRow row in dt.Rows)
+                {
+                    Table.Rows.Add(
+                        row.Table.Columns.Contains("StockCode") ? Convert.ToString(row["StockCode"]) : string.Empty,
+                        row.Table.Columns.Contains("StockName") ? Convert.ToString(row["StockName"]) : string.Empty,
+                        row.Table.Columns.Contains("ClosePrice") ? Convert.ToString(row["ClosePrice"]) : string.Empty,
+                        row.Table.Columns.Contains("Change") ? Convert.ToString(row["Change"]) : string.Empty,
+                        row.Table.Columns.Contains("PerChange") ? Convert.ToString(row["PerChange"]) : string.Empty
+                    );
+                }
+            }
+
             GridView.DataSource = Table;
         }
 
@@ -148,12 +163,12 @@ namespace HeThongChungKhoan
                 string timeStamp = obj.Timestamp.ToString();
                 string timeOnly = DateTime.Parse(timeStamp).TimeOfDay.ToString();
                 string mes = obj.Message.ToString();
-                List<object> data = obj.Data;
+                dynamic data = obj.Data;
                 LogMessage($"[{timeOnly}] {mes}");
                 switch (type)
                 {
                     case "DATA_RESULT":
-                        parseGrid(data)
+                        parseGrid(data);
                         break;
 
                     case "NOTIFICATION":
