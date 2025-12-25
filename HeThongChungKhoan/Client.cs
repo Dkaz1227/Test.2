@@ -1,12 +1,14 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.IO;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using static HeThongChungKhoan.Program;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
-using Newtonsoft.Json;
 
 namespace HeThongChungKhoan
 {
@@ -22,11 +24,15 @@ namespace HeThongChungKhoan
         {
             InitializeComponent();
             client = new TcpClient();
-            client.Connect(GlobalSettings.ServerAddress, int.Parse(GlobalSettings.Port));
+            while (!client.Connected)
+                Thread.Sleep(1000);
+                try
+                {
+                    client.Connect(GlobalSettings.ServerAddress, int.Parse(GlobalSettings.Port));
+                }
+                catch { }
 
             stream = client.GetStream();
-            reader = new StreamReader(stream, Encoding.Unicode);
-            writer = new StreamWriter(stream, Encoding.Unicode) { AutoFlush = true };
 
             listenThread = new Thread(new ThreadStart(ListenForMessages));
             listenThread.IsBackground = true;
@@ -35,11 +41,26 @@ namespace HeThongChungKhoan
 
         private void TimKiem_Click(object sender, EventArgs e)
         {
-            int size = 0;
-            DateTime time = DateTime.Now;
+            int size = (int) numSize.Value;
+            DateTime time = DateTime.Parse(dayDate.Value.ToString());
             string formattedDateTime = time.ToString("yyyy-MM-dd HH:mm:ss");
-            
-            writer.WriteLine($"TIMKIEM|{formattedDateTime}|{size}");
+            string email = txtReceiveMail.Text;
+
+            MessageBox.Show(formattedDateTime);
+
+
+            SendResponse(stream, new {Command = "FETCH_DATA", Payload = new {
+                Size = size,
+                Date = formattedDateTime,
+                Email = email
+            } });
+        }
+
+        private void SendResponse(NetworkStream ns, object obj)
+        {
+            string json = JsonConvert.SerializeObject(obj);
+            byte[] sendData = Encoding.UTF8.GetBytes(json);
+            ns.Write(sendData, 0, sendData.Length);
         }
 
         private void ListenForMessages()
@@ -65,6 +86,12 @@ namespace HeThongChungKhoan
 
         private void HandleServerMessage(string message)
         {
+            //dynamic obj = JsonConvert.DeserializeObject(request);
+            //if (obj?.action == null)
+            //{
+            //    SendResponse(ns, new { status = "error", message = "Missing 'action' field" });
+            //    return;
+            //}
             string[] parts = message.Split(new char[] { '|' }, 4);
             string command = parts[0];
             LogMessage(command);
