@@ -127,7 +127,7 @@ namespace HeThongChungKhoan
                 var errorResponse = new
                 {
                     status = "error",
-                    message = "Không thể kết nối hoặc giao tiếp với server."
+                    message = $"Không thể kết nối hoặc giao tiếp với server. {ex.Message}"
                 };
                 return JsonConvert.SerializeObject(errorResponse);
             }
