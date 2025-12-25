@@ -16,7 +16,13 @@ namespace HeThongChungKhoan
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Form1());
+            Application.Run(new Client());
+        }
+
+        public static class GlobalSettings
+        {
+            public static string ServerAddress { get; set; } = "127.0.0.1";
+            public static string Port { get; set; } = "8080";
         }
     }
 }
