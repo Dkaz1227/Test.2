@@ -1,4 +1,7 @@
-﻿using Newtonsoft.Json;
+﻿using MailKit;
+using MailKit.Security;
+using MimeKit;
+using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Net.Sockets;
@@ -146,6 +149,9 @@ namespace HeThongChungKhoan
 
             }
         }
-
+        private void btnMail_Click(object sender, EventArgs e)
+        {
+            
+        }
     }
 }
