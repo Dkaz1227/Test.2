@@ -26,21 +26,21 @@ namespace HeThongChungKhoan
         {
             InitializeComponent();
             client = new TcpClient();
-            while (!client.Connected)
-                Thread.Sleep(1000);
-                try
+            try
+            {
+                client.Connect(GlobalSettings.ServerAddress, int.Parse(GlobalSettings.Port));
+                if (client.Connected)
                 {
-                    client.Connect(GlobalSettings.ServerAddress, int.Parse(GlobalSettings.Port));
-                    if (client.Connected)
-                    {
-                        stream = client.GetStream();
+                    stream = client.GetStream();
+                    reader = new StreamReader(stream);
+                    writer = new StreamWriter(stream);
 
-                        listenThread = new Thread(new ThreadStart(ListenForMessages));
-                        listenThread.IsBackground = true;
-                        listenThread.Start();
-                    }
+                    listenThread = new Thread(new ThreadStart(ListenForMessages));
+                    listenThread.IsBackground = true;
+                    listenThread.Start();
                 }
-                catch { }
+            }
+            catch { }
         }
 
         private void parseGrid(dynamic data)
@@ -51,23 +51,25 @@ namespace HeThongChungKhoan
             Table.Columns.Add("ClosePrice", typeof(int));
             Table.Columns.Add("Change", typeof(int));
             Table.Columns.Add("PerChange", typeof(int));
-
-            DataTable dt = null;
-            try { dt = data.ToObject<DataTable>()[2]; } catch { }
-
-            if (dt != null)
+            try
             {
-                foreach (DataRow row in dt.Rows)
+                DataTable dt = null;
+                try { dt = data.ToObject<DataTable>()[2]; } catch { }
+
+                if (dt != null)
                 {
-                    Table.Rows.Add(
-                        row.Table.Columns.Contains("StockCode") ? Convert.ToString(row["StockCode"]) : string.Empty,
-                        row.Table.Columns.Contains("StockName") ? Convert.ToString(row["StockName"]) : string.Empty,
-                        row.Table.Columns.Contains("ClosePrice") ? Convert.ToString(row["ClosePrice"]) : string.Empty,
-                        row.Table.Columns.Contains("Change") ? Convert.ToString(row["Change"]) : string.Empty,
-                        row.Table.Columns.Contains("PerChange") ? Convert.ToString(row["PerChange"]) : string.Empty
-                    );
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        Table.Rows.Add(
+                            row.Table.Columns.Contains("StockCode") ? Convert.ToString(row["StockCode"]) : string.Empty,
+                            row.Table.Columns.Contains("StockName") ? Convert.ToString(row["StockName"]) : string.Empty,
+                            row.Table.Columns.Contains("ClosePrice") ? Convert.ToString(row["ClosePrice"]) : string.Empty,
+                            row.Table.Columns.Contains("Change") ? Convert.ToString(row["Change"]) : string.Empty,
+                            row.Table.Columns.Contains("PerChange") ? Convert.ToString(row["PerChange"]) : string.Empty
+                        );
+                    }
                 }
-            }
+            } catch { }
 
             GridView.DataSource = Table;
         }
@@ -103,6 +105,7 @@ namespace HeThongChungKhoan
             };
             string response = SendRequest(stream, JsonConvert.SerializeObject(res));
             HandleServerMessage(response);
+            MessageBox.Show("Mail gửi thành công!");
         }
 
         private string SendRequest(NetworkStream ns, string jsonRequest)
@@ -172,7 +175,6 @@ namespace HeThongChungKhoan
                         break;
 
                     case "NOTIFICATION":
-                        MessageBox.Show("Mail gửi thành công!");
                         break;
                 }
             }
@@ -186,7 +188,7 @@ namespace HeThongChungKhoan
         {
             try
             {
-                lstAnoucement.Items.Add($"{message}\n");
+                lstAnoucement.Items.Add($"{message}");
             }
             catch (Exception)
             {
