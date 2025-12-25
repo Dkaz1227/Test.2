@@ -29,14 +29,16 @@ namespace HeThongChungKhoan
                 try
                 {
                     client.Connect(GlobalSettings.ServerAddress, int.Parse(GlobalSettings.Port));
+                    if (client.Connected)
+                    {
+                        stream = client.GetStream();
+
+                        listenThread = new Thread(new ThreadStart(ListenForMessages));
+                        listenThread.IsBackground = true;
+                        listenThread.Start();
+                    }
                 }
                 catch { }
-
-            stream = client.GetStream();
-
-            listenThread = new Thread(new ThreadStart(ListenForMessages));
-            listenThread.IsBackground = true;
-            listenThread.Start();
         }
 
         private void TimKiem_Click(object sender, EventArgs e)
@@ -45,22 +47,46 @@ namespace HeThongChungKhoan
             DateTime time = DateTime.Parse(dayDate.Value.ToString());
             string formattedDateTime = time.ToString("yyyy-MM-dd HH:mm:ss");
             string email = txtReceiveMail.Text;
-
-            MessageBox.Show(formattedDateTime);
-
-
-            SendResponse(stream, new {Command = "FETCH_DATA", Payload = new {
-                Size = size,
-                Date = formattedDateTime,
-                Email = email
-            } });
+            var res = new
+            {
+                Command = "FETCH_DATA",
+                Payload = new
+                {
+                    Size = size,
+                    Date = formattedDateTime,
+                    Email = email
+                }
+            };
+            string response = SendRequest(stream, JsonConvert.SerializeObject(res));
+            HandleServerMessage(response);
         }
 
-        private void SendResponse(NetworkStream ns, object obj)
+        private string SendRequest(NetworkStream ns, string jsonRequest)
         {
-            string json = JsonConvert.SerializeObject(obj);
-            byte[] sendData = Encoding.UTF8.GetBytes(json);
-            ns.Write(sendData, 0, sendData.Length);
+            try
+            {
+                byte[] requestData = Encoding.UTF8.GetBytes(jsonRequest);
+                ns.Write(requestData, 0, requestData.Length);
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = ns.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        ms.Write(buffer, 0, bytesRead);
+                    }
+                    return Encoding.UTF8.GetString(ms.ToArray());
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorResponse = new
+                {
+                    status = "error",
+                    message = "Không thể kết nối hoặc giao tiếp với server."
+                };
+                return JsonConvert.SerializeObject(errorResponse);
+            }
         }
 
         private void ListenForMessages()
@@ -75,37 +101,50 @@ namespace HeThongChungKhoan
             }
             catch (Exception ex)
             {
-                LogMessage("Lost connection to server.");
+                LogMessage("Mất kết nối với Server.");
                 LogMessage(ex.Message);
                 listenThread?.Abort();
-                writer?.Close();
-                reader?.Close();
+                stream?.Close();
                 client?.Close();
             }
         }
 
         private void HandleServerMessage(string message)
         {
-            //dynamic obj = JsonConvert.DeserializeObject(request);
-            //if (obj?.action == null)
-            //{
-            //    SendResponse(ns, new { status = "error", message = "Missing 'action' field" });
-            //    return;
-            //}
-            string[] parts = message.Split(new char[] { '|' }, 4);
-            string command = parts[0];
-            LogMessage(command);
-            switch (command)
+            dynamic obj = JsonConvert.DeserializeObject(message);
+            string status = obj.Status.ToString();
+            if(status == "Success")
             {
-                case "MSG":
-                case "﻿MSG":
-                    LogMessage($"{parts[1]}: {parts[2]}");
-                    break;
+                string type = obj.Type.ToString();
+                string timeStamp = obj.Timestamp.ToString();
+                string timeOnly = DateTime.Parse(timeStamp).TimeOfDay.ToString();
+                string mes = obj.Message.ToString();
+                LogMessage($"[{timeOnly}] {mes}");
+                switch (type)
+                {
+                    case "DATA_RESULT":
+                        break;
+
+                    case "NOTIFICATION":
+                        break;
+                }
+            }
+            else
+            {
+                MessageBox.Show("Server lỗi");
             }
         }
 
         private void LogMessage(string message)
         {
+            try
+            {
+                lstAnoucement.Items.Add($"{message}\n");
+            }
+            catch (Exception)
+            {
+
+            }
         }
 
     }
