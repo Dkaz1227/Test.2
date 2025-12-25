@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="../ServerApp/ServerApp.csproj" Id="209e95b6-f73d-4e41-a634-0c5fa960d6ff" />
   <Project Path="HeThongChungKhoan.csproj" Id="980c5bf2-6581-4936-99ae-94b0ed8d594b" />
 </Solution>
